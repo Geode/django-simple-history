@@ -5,7 +5,18 @@ import unittest
 
 import django
 from django.db import models
-from django.db.models.loading import get_model
+try:
+    from django.apps import apps
+except ImportError:  # Django < 1.7
+    from django.db.models.loading import get_model
+    apps = None
+else:
+    def get_model18(appname, modelname):
+        myapp = apps.get_app_config(appname)
+        #print(myapp.models)
+        return myapp.get_model(modelname)
+    get_model = get_model18
+
 from django.db.models.fields.proxy import OrderWrt
 from django.test import TestCase
 from django.core.files.base import ContentFile

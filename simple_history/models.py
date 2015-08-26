@@ -2,14 +2,14 @@ from __future__ import unicode_literals
 
 import threading
 import copy
+from copy import deepcopy
+
 import warnings
 
 import django
 from django.db import models, router
 from django.db.models.fields.proxy import OrderWrt
 from django.db.models.fields.related import RelatedField
-from django.db.models.related import RelatedObject
-from django.db.models.loading import get_model
 
 from django.conf import settings
 from django.contrib import admin
@@ -29,7 +29,7 @@ except ImportError:  # Django < 1.7
     from django.db.models.loading import get_app
     apps = None
 else:
-    get_app = apps.get_app
+    get_app = None
 try:
     from south.modelsinspector import add_introspection_rules
 except ImportError:  # south not present
@@ -144,8 +144,9 @@ class HistoricalRecords(object):
         """
         fields = {}
         for field in model._meta.fields:
-            field = copy.copy(field)
-            field.rel = copy.copy(field.rel)
+            field = deepcopy(field)
+            #field = copy.copy(field)
+            #field.rel = copy.copy(field.rel)
             if isinstance(field, OrderWrt):
                 # OrderWrt is a proxy field, switch to a plain IntegerField
                 field.__class__ = models.IntegerField
