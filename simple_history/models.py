@@ -2,23 +2,34 @@ from __future__ import unicode_literals
 
 import threading
 import copy
-try:
-    from django.apps import apps
-except ImportError:  # Django < 1.7
-    apps = None
+import warnings
+
+import django
 from django.db import models, router
-from django.db.models import loading
 from django.db.models.fields.proxy import OrderWrt
 from django.db.models.fields.related import RelatedField
 from django.db.models.related import RelatedObject
 from django.db.models.loading import get_model
+
 from django.conf import settings
 from django.contrib import admin
-from django.utils import importlib, six
+from django.utils import six
 from django.utils.encoding import python_2_unicode_compatible
 from django.utils.encoding import smart_text
 from django.utils.timezone import now
 from django.utils.translation import string_concat
+
+try:
+    import importlib
+except ImportError:
+    from django.utils import importlib
+try:
+    from django.apps import apps
+except ImportError:  # Django < 1.7
+    from django.db.models.loading import get_app
+    apps = None
+else:
+    get_app = apps.get_app
 try:
     from south.modelsinspector import add_introspection_rules
 except ImportError:  # south not present
@@ -27,6 +38,7 @@ else:  # south configuration for CustomForeignKeyField
     add_introspection_rules(
         [], ["^simple_history.models.CustomForeignKeyField"])
 from . import utils
+
 from .manager import HistoryDescriptor
 
 registered_models = {}
@@ -36,7 +48,7 @@ class HistoricalRecords(object):
     thread = threading.local()
 
     def __init__(self, verbose_name=None, bases=(models.Model,),
-                 user_related_name=None):
+                 user_related_name='+'):
         self.user_set_verbose_name = verbose_name
         self.user_related_name = user_related_name
         try:
@@ -108,7 +120,7 @@ class HistoricalRecords(object):
         elif app_module != self.module:
             if apps is None:  # Django < 1.7
                 # has meta options with app_label
-                app = loading.get_app(model._meta.app_label)
+                app = get_app(model._meta.app_label)
                 attrs['__module__'] = app.__name__  # full dotted name
             else:
                 # Abuse an internal API because the app registry is loading.
@@ -134,18 +146,40 @@ class HistoricalRecords(object):
         for field in model._meta.fields:
             field = copy.copy(field)
             field.rel = copy.copy(field.rel)
-            if isinstance(field, models.ForeignKey):
-                # Don't allow reverse relations.
-                # ForeignKey knows best what datatype to use for the column
-                # we'll used that as soon as it's finalized by copying rel.to
-                field.__class__ = CustomForeignKeyField
-                field.rel.related_name = '+'
-                field.null = True
-                field.blank = True
             if isinstance(field, OrderWrt):
                 # OrderWrt is a proxy field, switch to a plain IntegerField
                 field.__class__ = models.IntegerField
-            transform_field(field)
+            if isinstance(field, models.ForeignKey):
+                old_field = field
+                field_arguments = {}
+                if (getattr(old_field, 'one_to_one', False) or
+                        isinstance(old_field, models.OneToOneField)):
+                    FieldType = models.ForeignKey
+                else:
+                    FieldType = type(old_field)
+                if django.get_version() >= "1.6":
+                    field_arguments['db_constraint'] = False
+                if getattr(old_field, 'to_fields', []):
+                    field_arguments['to_field'] = old_field.to_fields[0]
+                elif django.get_version() < "1.6" and old_field.rel.field_name != 'id':
+                    field_arguments['to_field'] = old_field.rel.field_name
+                if getattr(old_field, 'db_column', None):
+                    field_arguments['db_column'] = old_field.db_column
+                field = FieldType(
+                    old_field.rel.to,
+                    related_name='+',
+                    null=True,
+                    blank=True,
+                    primary_key=False,
+                    db_index=True,
+                    serialize=True,
+                    unique=False,
+                    on_delete=models.DO_NOTHING,
+                    **field_arguments
+                )
+                field.name = old_field.name
+            else:
+                transform_field(field)
             fields[field.name] = field
         return fields
 
@@ -167,7 +201,8 @@ class HistoricalRecords(object):
                     [getattr(self, opts.pk.attname), self.history_id])
 
         def get_instance(self):
-            return model(**dict([(k, getattr(self, k)) for k in fields]))
+            return model(**dict([(field.attname, getattr(self, field.attname))
+                                for field in fields.values()]))
 
         return {
             'history_id': models.AutoField(primary_key=True),
@@ -240,6 +275,8 @@ class HistoricalRecords(object):
 class CustomForeignKeyField(models.ForeignKey):
 
     def __init__(self, *args, **kwargs):
+        warnings.warn("CustomForeignKeyField is deprecated.",
+                      DeprecationWarning)
         super(CustomForeignKeyField, self).__init__(*args, **kwargs)
         self.db_constraint = False
         self.generate_reverse_relation = False
@@ -302,13 +339,6 @@ class CustomForeignKeyField(models.ForeignKey):
 
     def do_related_class(self, other, cls):
         field = self.get_field(other, cls)
-        if not hasattr(self, 'related'):
-            try:
-                instance_type = cls.instance_type
-            except AttributeError:  # when model is reconstituted for migration
-                pass  # happens during migrations
-            else:
-                self.related = RelatedObject(other, instance_type, self)
         transform_field(field)
         field.rel = None
 

@@ -243,3 +243,30 @@ class SeriesWork(models.Model):
 class PollInfo(models.Model):
     poll = models.ForeignKey(Poll, primary_key=True)
     history = HistoricalRecords()
+
+
+class UserAccessorDefault(models.Model):
+    pass
+
+
+class UserAccessorOverride(models.Model):
+    pass
+
+
+class Employee(models.Model):
+    manager = models.OneToOneField('Employee', null=True)
+    history = HistoricalRecords()
+
+
+class Country(models.Model):
+    code = models.CharField(max_length=15, unique=True)
+
+
+class Province(models.Model):
+    country = models.ForeignKey(Country, to_field='code')
+    history = HistoricalRecords()
+
+
+class City(models.Model):
+    country = models.ForeignKey(Country, db_column='countryCode')
+    history = HistoricalRecords()

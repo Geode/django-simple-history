@@ -1,6 +1,27 @@
 Changes
 =======
 
+1.6.3 (2015-07-30)
+------------------
+- Respect `to_field` and `db_column` parameters (gh-182)
+
+1.6.2 (2015-07-04)
+------------------
+- Use app loading system and fix deprecation warnings on Django 1.8 (gh-172)
+- Update Landscape configuration
+
+1.6.1 (2015-04-21)
+------------------
+- Fix OneToOneField transformation for historical models (gh-166)
+- Disable cascading deletes from related models to historical models
+- Fix restoring historical instances with missing one-to-one relations (gh-162)
+
+1.6.0 (2015-04-16)
+------------------
+- Add support for Django 1.8+
+- Deprecated use of ``CustomForeignKeyField`` (to be removed)
+- Remove default reverse accessor to `auth.User` for historical models (gh-121)
+
 1.5.4 (2015-01-03)
 ------------------
 - Fix a bug when models have a ``ForeignKey`` with ``primary_key=True``

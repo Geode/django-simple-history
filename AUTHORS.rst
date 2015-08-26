@@ -2,6 +2,7 @@ Authors
 =======
 
 - Aleksey Kladov
+- bradford281
 - Brian Dixon
 - Corey Bertram
 - Damien Nozay
@@ -17,10 +18,12 @@ Authors
 - Jonathan Sanchez
 - Josh Fyne
 - Klaas van Schelven
+- Martin Bachwerk
 - Marty Alchin
 - Mauricio de Abreu Antunes
 - Micah Denbraver
 - Rajesh Pappula
+- Rod Xavier Bondoc
 - Ross Lote
 - Steven Klass
 - Trey Hunner
